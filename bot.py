@@ -1,6 +1,6 @@
 import os
 import cv2
-import requests
+import json
 from datetime import datetime
 from atproto import Client
 
@@ -8,12 +8,11 @@ from atproto import Client
 HANDLE = "malteseshakeframes.bsky.social"
 APP_PASSWORD = "dh5h-biq2-7ija-d4s7"
 
-# Public direct download link for your video (dl=1 forces a raw file stream)
+# Raw network direct-stream URL from your Dropbox asset
 VIDEO_URL = "https://dropbox.com"
 
 MAX_BYTES = 1_950_000
-LOCAL_VIDEO = "temp_video.mp4"
-LOCAL_STATE = "frame_counter.txt"  # Tracked directly inside your GitHub Repo
+LOCAL_STATE = "frame_counter.txt"
 TEMP_IMG = "temp_frame.png"
 
 def get_current_frame_index():
@@ -38,34 +37,32 @@ def generate_progress_bar(current, total, bar_length=10):
 def main():
     print(f"🚀 Execution started at {datetime.now().strftime('%H:%M:%S')}")
     
-    # 1. Download video directly from your public Dropbox stream link
-    print("📥 Stream downloading video from Dropbox link...")
-    response = requests.get(VIDEO_URL, stream=True)
-    if response.status_code == 200:
-        with open(LOCAL_VIDEO, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=1024*1024):
-                if chunk:
-                    f.write(chunk)
-        print("✅ Video asset download complete.")
-    else:
-        print(f"❌ Failed to download video. Status code: {response.status_code}")
-        return
-
     current_frame = get_current_frame_index()
-    cap = cv2.VideoCapture(LOCAL_VIDEO)
+    print(f"🎬 Target index: Frame {current_frame}")
+    
+    # Connect OpenCV directly to the online stream to bypass heavy local storage downloads
+    print("🌐 Connecting directly to online Dropbox video stream...")
+    cap = cv2.VideoCapture(VIDEO_URL)
+    
+    if not cap.isOpened():
+        print("❌ ERROR: Could not open the video stream URL directly.")
+        return
+        
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"📊 Video stream parsed successfully. Total frames: {total_frames:,}")
     
     if current_frame >= total_frames:
         print("🎉 Finished all frames in the video!")
         cap.release()
         return
 
+    # Seek exactly to our target frame over the network stream pipe
     cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
     ret, frame = cap.read()
     cap.release()
     
     if not ret or frame is None:
-        print(f"❌ ERROR: Failed to extract frame {current_frame}")
+        print(f"❌ ERROR: Failed to extract frame {current_frame} from the network stream.")
         return
 
     cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
@@ -92,9 +89,9 @@ def main():
             img_data = f.read()
             
         client.send_image(text=status_text, image=img_data, image_alt=f"Frame {current_frame}")
-        print(f"🎯 SUCCESS: Posted frame {current_frame}.")
+        print(f"🎯 SUCCESS: Posted frame {current_frame} to Bluesky.")
         
-        # Increment index value and save it locally
+        # Increment index value and save it locally for the repo update step
         save_current_frame_index(current_frame + 1)
 
     except Exception as e:
@@ -102,8 +99,6 @@ def main():
         
     finally:
         # Keep workspace clean
-        if os.path.exists(LOCAL_VIDEO):
-            os.remove(LOCAL_VIDEO)
         if os.path.exists(TEMP_IMG):
             os.remove(TEMP_IMG)
 
