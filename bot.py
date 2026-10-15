@@ -1,5 +1,6 @@
 import os
 import cv2
+import json
 from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -21,10 +22,14 @@ TEMP_IMG = "temp_frame.png"
 
 # --- GOOGLE DRIVE API UTILITIES ---
 def get_drive_service():
-    # Looks for credentials inside an environment variable for security
+    # Explicitly authorization path for full drive access
     SCOPES = ['https://googleapis.com']
+    
+    # Safely parses multi-line JSON secrets directly from GitHub environmental blocks
+    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS_JSON'])
+    
     creds = service_account.Credentials.from_service_account_info(
-        eval(os.environ['GOOGLE_CREDENTIALS_JSON']), scopes=SCOPES
+        creds_info, scopes=SCOPES
     )
     return build('drive', 'v3', credentials=creds)
 
@@ -68,7 +73,7 @@ def main():
     print(f"🚀 Execution started at {datetime.now().strftime('%H:%M:%S')}")
     service = get_drive_service()
     
-    # Download assets from Drive into temporary cloud workspace
+    # Download state tracker and raw video from shared Google Drive
     download_file_from_drive(service, STATE_FILE_ID, LOCAL_STATE)
     download_file_from_drive(service, VIDEO_FILE_ID, LOCAL_VIDEO)
     
@@ -91,7 +96,7 @@ def main():
 
     cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
 
-    # Shrinking loop
+    # Shrinking loop if the picture file size exceeds constraints
     file_size = os.path.getsize(TEMP_IMG)
     scale_factor = 0.90  
     while file_size > MAX_BYTES:
@@ -103,6 +108,7 @@ def main():
         file_size = os.path.getsize(TEMP_IMG)
 
     try:
+        # Establish Bluesky authentication
         client = Client()
         client.login(HANDLE, APP_PASSWORD)
         progress_bar = generate_progress_bar(current_frame, total_frames)
@@ -114,7 +120,7 @@ def main():
         client.send_image(text=status_text, image=img_data, image_alt=f"Frame {current_frame}")
         print(f"🎯 SUCCESS: Posted frame {current_frame}.")
         
-        # Save locally, then sync up to your persistent Google Drive text file
+        # Increment index value locally, then sync up to persistent cloud state
         save_current_frame_index(current_frame + 1)
         upload_file_to_drive(service, STATE_FILE_ID, LOCAL_STATE)
 
@@ -122,7 +128,7 @@ def main():
         print(f"❌ Error occurred: {e}")
         
     finally:
-        # Clean workspace
+        # Erase heavy media assets from memory storage to keep cloud node light
         for path in [LOCAL_VIDEO, LOCAL_STATE, TEMP_IMG]:
             if os.path.exists(path): os.remove(path)
 
