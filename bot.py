@@ -40,12 +40,16 @@ def main():
     current_frame = get_current_frame_index()
     print(f"🎬 Target index: Frame {current_frame}")
     
-    # 1. Chunk download video cleanly from your Dropbox link
-    print("📥 Stream downloading video from Dropbox link in 5MB blocks...")
-    response = requests.get(VIDEO_URL, stream=True)
+    # 1. Download video with a realistic browser User-Agent header
+    print("📥 Stream downloading video from Dropbox link...")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    response = requests.get(VIDEO_URL, headers=headers, stream=True)
     if response.status_code == 200:
         with open(LOCAL_VIDEO, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=5*1024*1024):
+            for chunk in response.iter_content(chunk_size=1024*1024):
                 if chunk:
                     f.write(chunk)
         print("✅ Video file successfully buffered to container disk.")
@@ -57,6 +61,11 @@ def main():
     cap = cv2.VideoCapture(LOCAL_VIDEO)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f"📊 Video file opened successfully. Total frames: {total_frames:,}")
+    
+    if total_frames <= 0:
+        print("❌ ERROR: Downloaded file is empty or corrupted (moov atom missing).")
+        cap.release()
+        return
     
     if current_frame >= total_frames:
         print("🎉 Finished all frames in the video!")
