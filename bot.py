@@ -3,6 +3,9 @@ import cv2
 import json
 from datetime import datetime
 from google.oauth2 import service_account
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
@@ -22,26 +25,28 @@ TEMP_IMG = "temp_frame.png"
 
 # --- GOOGLE DRIVE API UTILITIES ---
 def get_drive_service():
-    # MANDATORY: Must include the full path or Google rejects the token signature
     SCOPES = ['https://googleapis.com']
-    
-    # Read raw data directly from GitHub Environment Block
     raw_secret = os.environ.get('GOOGLE_CREDENTIALS_JSON', '{}')
     creds_info = json.loads(raw_secret)
     
-    # Explicitly enforce clean token formats
-    if "private_key" in creds_info:
-        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
-        
-    # Use direct credentials constructor parameters to bypass standard discovery blocks
     try:
-        creds = service_account.Credentials.from_service_account_info(
-            creds_info, 
-            scopes=SCOPES
-        )
+        # Check if running under the Desktop Client schema
+        if "installed" in creds_info or "web" in creds_info:
+            # We treat the credentials as explicit user tokens to bypass service account blocks
+            creds = Credentials.from_authorized_user_info(creds_info, scopes=SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+        else:
+            # Fallback handling for service accounts
+            if "private_key" in creds_info:
+                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+            creds = service_account.Credentials.from_service_account_info(
+                creds_info, scopes=SCOPES
+            )
+            
         return build('drive', 'v3', credentials=creds, cache_discovery=False)
     except Exception as token_err:
-        print(f"❌ Handshake construction failed: {token_err}")
+        print(f"❌ Key initialization rejected: {token_err}")
         raise token_err
 
 def download_file_from_drive(service, file_id, local_path):
@@ -84,7 +89,6 @@ def main():
     print(f"🚀 Execution started at {datetime.now().strftime('%H:%M:%S')}")
     service = get_drive_service()
     
-    # Download state tracker and raw video from shared Google Drive
     download_file_from_drive(service, STATE_FILE_ID, LOCAL_STATE)
     download_file_from_drive(service, VIDEO_FILE_ID, LOCAL_VIDEO)
     
@@ -107,11 +111,10 @@ def main():
 
     cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
 
-    # Shrinking loop if the picture file size exceeds constraints
     file_size = os.path.getsize(TEMP_IMG)
     scale_factor = 0.90  
     while file_size > MAX_BYTES:
-        orig_height, orig_width = frame.shape, frame.shape
+        orig_height, orig_width = frame.shape[0], frame.shape[1]
         width, height = int(orig_width * scale_factor), int(orig_height * scale_factor)
         if width < 100 or height < 100: break
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
@@ -119,7 +122,6 @@ def main():
         file_size = os.path.getsize(TEMP_IMG)
 
     try:
-        # Establish Bluesky authentication
         client = Client()
         client.login(HANDLE, APP_PASSWORD)
         progress_bar = generate_progress_bar(current_frame, total_frames)
@@ -131,7 +133,6 @@ def main():
         client.send_image(text=status_text, image=img_data, image_alt=f"Frame {current_frame}")
         print(f"🎯 SUCCESS: Posted frame {current_frame}.")
         
-        # Increment index value locally, then sync up to persistent cloud state
         save_current_frame_index(current_frame + 1)
         upload_file_to_drive(service, STATE_FILE_ID, LOCAL_STATE)
 
@@ -139,7 +140,6 @@ def main():
         print(f"❌ Error occurred: {e}")
         
     finally:
-        # Erase heavy media assets from memory storage to keep cloud node light
         for path in [LOCAL_VIDEO, LOCAL_STATE, TEMP_IMG]:
             if os.path.exists(path): os.remove(path)
 
