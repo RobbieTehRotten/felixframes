@@ -22,14 +22,19 @@ TEMP_IMG = "temp_frame.png"
 
 # --- GOOGLE DRIVE API UTILITIES ---
 def get_drive_service():
-    # Explicitly authorization path for full drive access
     SCOPES = ['https://googleapis.com']
     
-    # Safely parses multi-line JSON secrets directly from GitHub environmental blocks
-    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS_JSON'])
+    # Read raw data directly from GitHub Environment Block
+    raw_secret = os.environ.get('GOOGLE_CREDENTIALS_JSON', '{}')
+    creds_info = json.loads(raw_secret)
     
+    # Force fix multi-line certificate parsing bugs unique to container runners
+    if "private_key" in creds_info:
+        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").replace("\n", "\n")
+        
     creds = service_account.Credentials.from_service_account_info(
-        creds_info, scopes=SCOPES
+        creds_info, 
+        scopes=SCOPES
     )
     return build('drive', 'v3', credentials=creds)
 
