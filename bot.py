@@ -22,21 +22,27 @@ TEMP_IMG = "temp_frame.png"
 
 # --- GOOGLE DRIVE API UTILITIES ---
 def get_drive_service():
+    # MANDATORY: Must include the full path or Google rejects the token signature
     SCOPES = ['https://googleapis.com']
     
     # Read raw data directly from GitHub Environment Block
     raw_secret = os.environ.get('GOOGLE_CREDENTIALS_JSON', '{}')
     creds_info = json.loads(raw_secret)
     
-    # Force fix multi-line certificate parsing bugs unique to container runners
+    # Explicitly enforce clean token formats
     if "private_key" in creds_info:
-        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").replace("\n", "\n")
+        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
         
-    creds = service_account.Credentials.from_service_account_info(
-        creds_info, 
-        scopes=SCOPES
-    )
-    return build('drive', 'v3', credentials=creds)
+    # Use direct credentials constructor parameters to bypass standard discovery blocks
+    try:
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info, 
+            scopes=SCOPES
+        )
+        return build('drive', 'v3', credentials=creds, cache_discovery=False)
+    except Exception as token_err:
+        print(f"❌ Handshake construction failed: {token_err}")
+        raise token_err
 
 def download_file_from_drive(service, file_id, local_path):
     print(f"📥 Downloading file ID {file_id} from Drive...")
@@ -105,7 +111,7 @@ def main():
     file_size = os.path.getsize(TEMP_IMG)
     scale_factor = 0.90  
     while file_size > MAX_BYTES:
-        orig_height, orig_width = frame.shape[0], frame.shape[1]
+        orig_height, orig_width = frame.shape, frame.shape
         width, height = int(orig_width * scale_factor), int(orig_height * scale_factor)
         if width < 100 or height < 100: break
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
