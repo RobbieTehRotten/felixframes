@@ -1,6 +1,6 @@
 import os
 import cv2
-import requests
+import json
 from datetime import datetime
 from atproto import Client
 
@@ -8,11 +8,10 @@ from atproto import Client
 HANDLE = "malteseshakeframes.bsky.social"
 APP_PASSWORD = "dh5h-biq2-7ija-d4s7"
 
-# CORRECTED FOR DEVELOPER PIPELINES: Changed dl=1 to raw=1
+# Your verified raw streaming link
 VIDEO_URL = "https://www.dropbox.com/scl/fi/lnhvh6q0pgrb5tcn6rdpi/Untitledfel.mp4?rlkey=k3zyb1b2ysorg3dahmxgkptit&st=uitj2n2i&raw=1"
 
 MAX_BYTES = 1_950_000
-LOCAL_VIDEO = "temp_video.mp4"
 LOCAL_STATE = "frame_counter.txt"
 TEMP_IMG = "temp_frame.png"
 
@@ -40,44 +39,34 @@ def main():
     current_frame = get_current_frame_index()
     print(f"🎬 Target index: Frame {current_frame}")
     
-    # 1. Download video directly from your public Dropbox stream link
-    print("📥 Stream downloading video from Dropbox link...")
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
+    # Connect OpenCV directly to the online stream to bypass heavy local storage downloads
+    print("🌐 Connecting directly to online Dropbox video stream...")
+    cap = cv2.VideoCapture(VIDEO_URL)
     
-    response = requests.get(VIDEO_URL, headers=headers, stream=True)
-    if response.status_code == 200:
-        with open(LOCAL_VIDEO, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=1024*1024):
-                if chunk:
-                    f.write(chunk)
-        print("✅ Video file successfully buffered to container disk.")
-    else:
-        print(f"❌ Failed to download video. Status code: {response.status_code}")
+    if not cap.isOpened():
+        print("❌ ERROR: Could not open the video stream URL directly.")
         return
-
-    # 2. Extract targeted frame locally
-    cap = cv2.VideoCapture(LOCAL_VIDEO)
+        
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"📊 Video file opened successfully. Total frames: {total_frames:,}")
+    print(f"📊 Video stream parsed successfully. Total frames: {total_frames:,}")
     
     if total_frames <= 0:
-        print("❌ ERROR: Downloaded file is empty or corrupted (moov atom missing).")
+        print("❌ ERROR: Video metadata returned an empty stream layout.")
         cap.release()
         return
-    
+
     if current_frame >= total_frames:
         print("🎉 Finished all frames in the video!")
         cap.release()
         return
 
+    # Seek exactly to our target frame over the network stream pipe
     cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
     ret, frame = cap.read()
     cap.release()
     
     if not ret or frame is None:
-        print(f"❌ ERROR: Failed to extract frame {current_frame}")
+        print(f"❌ ERROR: Failed to extract frame {current_frame} from the network stream.")
         return
 
     cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
@@ -114,8 +103,6 @@ def main():
         
     finally:
         # Keep workspace clean
-        if os.path.exists(LOCAL_VIDEO):
-            os.remove(LOCAL_VIDEO)
         if os.path.exists(TEMP_IMG):
             os.remove(TEMP_IMG)
 
