@@ -2,8 +2,8 @@ name: Run Frame Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: '*/5 * * * *' # Backup trigger in case the loop ever breaks
+  workflow_dispatch:     # Manual trigger button
 
 jobs:
   run-bot:
@@ -32,9 +32,25 @@ jobs:
     - name: Run Bot Script
       run: python bot.py
 
-    - name: Commit and Push updated frame status
+    - name: Commit, Push and Loop Trigger
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config --global user.name "GitHub Action Bot"
         git config --global user.email "actions@github.com"
         git add frame_counter.txt
-        git diff-index --quiet HEAD || (git commit -m "🤖 Auto-increment frame counter" && git push)
+        
+        # If a frame was posted, commit it and immediately queue up the next run
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "🤖 Auto-increment frame counter"
+          git push
+          
+          echo "🔄 Instantly triggering the next 5-minute queue cycle..."
+          sleep 300 # Forces a clean 5-minute wait (300 seconds) inside the cloud runner
+          
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://github.com{{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
+            -d '{"ref":"main"}'
+        fi
