@@ -8,12 +8,12 @@ from atproto import Client
 HANDLE = "malteseshakeframes.bsky.social"
 APP_PASSWORD = "dh5h-biq2-7ija-d4s7"
 
-# PUBLIC DIRECT DOWNLOAD LINK FOR YOUR VIDEO (No API Keys Needed)
-VIDEO_URL = "https://google.com"
+# Public direct download link for your video (dl=1 forces a raw file stream)
+VIDEO_URL = "https://dropbox.com"
 
 MAX_BYTES = 1_950_000
 LOCAL_VIDEO = "temp_video.mp4"
-LOCAL_STATE = "frame_counter.txt"  # Now tracked directly inside your GitHub Repo
+LOCAL_STATE = "frame_counter.txt"  # Tracked directly inside your GitHub Repo
 TEMP_IMG = "temp_frame.png"
 
 def get_current_frame_index():
@@ -38,8 +38,8 @@ def generate_progress_bar(current, total, bar_length=10):
 def main():
     print(f"🚀 Execution started at {datetime.now().strftime('%H:%M:%S')}")
     
-    # 1. Download video directly from your public Drive link
-    print("📥 Stream downloading video from Drive link...")
+    # 1. Download video directly from your public Dropbox stream link
+    print("📥 Stream downloading video from Dropbox link...")
     response = requests.get(VIDEO_URL, stream=True)
     if response.status_code == 200:
         with open(LOCAL_VIDEO, 'wb') as f:
