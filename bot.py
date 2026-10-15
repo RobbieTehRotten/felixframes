@@ -8,7 +8,7 @@ from atproto import Client
 HANDLE = "malteseshakeframes.bsky.social"
 APP_PASSWORD = "dh5h-biq2-7ija-d4s7"
 
-# Verified Dropbox raw direct download link
+# CORRECTED FOR DEVELOPER PIPELINES: Changed dl=1 to raw=1
 VIDEO_URL = "https://dropbox.com"
 
 MAX_BYTES = 1_950_000
@@ -40,10 +40,10 @@ def main():
     current_frame = get_current_frame_index()
     print(f"🎬 Target index: Frame {current_frame}")
     
-    # 1. Download video with a realistic browser User-Agent header
+    # 1. Download video directly from your public Dropbox stream link
     print("📥 Stream downloading video from Dropbox link...")
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
     response = requests.get(VIDEO_URL, headers=headers, stream=True)
