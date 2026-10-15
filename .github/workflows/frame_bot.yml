@@ -51,6 +51,6 @@ jobs:
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://github.com{{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
             -d '{"ref":"main"}'
         fi
