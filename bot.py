@@ -9,7 +9,7 @@ HANDLE = "malteseshakeframes.bsky.social"
 APP_PASSWORD = "dh5h-biq2-7ija-d4s7"
 
 # CORRECTED FOR DEVELOPER PIPELINES: Changed dl=1 to raw=1
-VIDEO_URL = "https://dropbox.com"
+VIDEO_URL = "https://www.dropbox.com/scl/fi/lnhvh6q0pgrb5tcn6rdpi/Untitledfel.mp4?rlkey=k3zyb1b2ysorg3dahmxgkptit&st=uitj2n2i&raw=1"
 
 MAX_BYTES = 1_950_000
 LOCAL_VIDEO = "temp_video.mp4"
