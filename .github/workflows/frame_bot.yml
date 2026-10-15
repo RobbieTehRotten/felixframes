@@ -54,4 +54,3 @@ jobs:
             https://github.com{{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
             -d '{"ref":"main"}'
         fi
-        fi
