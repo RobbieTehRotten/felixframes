@@ -55,7 +55,7 @@ jobs:
           git push
           
           echo "🔄 Instantly triggering the next 5-minute queue cycle..."
-          sleep 300 # Forces a clean 5-minute wait (300 seconds) inside the cloud runner
+          sleep 240 # Forces a clean 4-minute wait (240 seconds) inside the cloud runner
           
           curl -sS -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
