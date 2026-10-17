@@ -1,0 +1,65 @@
+name: Run Frame Bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# Prevents cron and workflow_dispatch from running two instances at the exact same time
+concurrency:
+  group: frame-bot-runner
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install System Video Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg libglib2.0-0
+
+    - name: Install Python Libraries
+      run: |
+        python -m pip install --upgrade pip
+        pip install opencv-python-headless atproto
+
+    - name: Run Bot Script
+      env:
+        BSKY_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+      run: python bot.py
+
+    - name: Commit, Push and Loop Trigger
+      env:
+        GITHUB_TOKEN: ${{ secrets.BOT_LOOP_TOKEN }}
+      run: |
+        git config --global user.name "GitHub Action Bot"
+        git config --global user.email "actions@github.com"
+        git add frame_counter.txt
+        
+        # If a frame was posted, commit it and immediately queue up the next run
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "🤖 Auto-increment frame counter"
+          git pull --rebase origin main
+          git push
+          
+          echo "🔄 Instantly triggering the next 5-minute queue cycle..."
+          sleep 300 # Forces a clean 5-minute wait (300 seconds) inside the cloud runner
+          
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
+            -d '{"ref":"main"}'
+        fi
