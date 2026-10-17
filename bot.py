@@ -8,7 +8,7 @@ import cv2
 # --- BLUESKY CONFIGURATION ---
 HANDLE = "malteseshakeframes.bsky.social"
 # Recommended: Store your password in GitHub Secrets as BSKY_PASSWORD, or replace the fallback string below
-APP_PASSWORD = os.getenv("BSKY_PASSWORD", "dh5h-biq2-7ija-d4s7")
+APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD", "dh5h-biq2-7ija-d4s7")
 
 # --- INTERNET ARCHIVE CONFIGURATION ---
 # Replace this with your direct archive.org/download/... link ending in .mp4
