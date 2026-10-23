@@ -13,6 +13,7 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -24,11 +25,6 @@ jobs:
       with:
         python-version: '3.11'
         cache: 'pip'
-
-    - name: Install System Video Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg libglib2.0-0
 
     - name: Install Python Libraries
       run: |
