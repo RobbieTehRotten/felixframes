@@ -2,7 +2,7 @@ name: Run Frame Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/3 * * * *'
   workflow_dispatch:
 
 # Prevents cron and workflow_dispatch from running two instances at the exact same time
@@ -54,7 +54,7 @@ jobs:
           git pull --rebase origin main
           git push
           
-          echo "🔄 Instantly triggering the next 5-minute queue cycle..."
+          echo "🔄 Instantly triggering the next 3-minute queue cycle..."
           sleep 150 # Forces a clean 3-minute wait (150 seconds) inside the cloud runner
           
           curl -sS -X POST \
