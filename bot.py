@@ -9,7 +9,7 @@ import cv2
 
 # --- BLUESKY CONFIGURATION ---
 HANDLE = "malteseshakeframes.bsky.social"
-APP_PASSWORD = os.getenv("BSKY_PASSWORD", "---------")
+APP_PASSWORD = os.getenv("BSKY_PASSWORD", "vpxt-man6-sgqi-cgrm")
 
 # --- INTERNET ARCHIVE CONFIGURATION ---
 ARCHIVE_VIDEO_URL = "https://archive.org/download/Untitledfel/Untitledfel.mp4"
