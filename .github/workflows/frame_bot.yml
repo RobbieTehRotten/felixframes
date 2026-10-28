@@ -2,7 +2,7 @@ name: Run Frame Bot
 
 on:
   schedule:
-    - cron: '*/3 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 # Prevents cron and workflow_dispatch from running two instances at the exact same time
@@ -32,6 +32,7 @@ jobs:
         pip install opencv-python-headless atproto
 
     - name: Run Bot Script
+      continue-on-error: true
       env:
         BSKY_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
       run: python bot.py
@@ -44,18 +45,21 @@ jobs:
         git config --global user.email "actions@github.com"
         git add frame_counter.txt
         
-        # If a frame was posted, commit it and immediately queue up the next run
+        # If a frame was posted, commit and push the updated counter
         if ! git diff-index --quiet HEAD; then
           git commit -m "🤖 Auto-increment frame counter"
           git pull --rebase origin main
           git push
-          
-          echo "🔄 Instantly triggering the next 3-minute queue cycle..."
-          sleep 150 # Forces a clean 3-minute wait (150 seconds) inside the cloud runner
-          
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
-            -d '{"ref":"main"}'
+        else
+          echo "⚠️ Frame was not posted this cycle (likely a temporary 502/network hiccup). Will retry the same frame next cycle!"
         fi
+        
+        # Always trigger the next 3-minute cycle, even if Bluesky had a temporary 502 error
+        echo "🔄 Waiting 150 seconds before triggering the next 3-minute queue cycle..."
+        sleep 150
+        
+        curl -sS -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
+          -d '{"ref":"main"}'
