@@ -1,11 +1,14 @@
+
 name: Run Frame Bot
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
-# Prevents cron and workflow_dispatch from running two instances at the exact same time
+permissions:
+  contents: write
+  actions: write
+
+# Prevent overlapping runs from posting the same frame
 concurrency:
   group: frame-bot-runner
   cancel-in-progress: false
@@ -14,52 +17,56 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        persist-credentials: true
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-    - name: Install Python Libraries
-      run: |
-        python -m pip install --upgrade pip
-        pip install opencv-python-headless atproto
+      - name: Install Python Libraries
+        run: |
+          python -m pip install --upgrade pip
+          pip install opencv-python-headless atproto
 
-    - name: Run Bot Script
-      continue-on-error: true
-      env:
-        BSKY_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
-      run: python bot.py
+      - name: Run Bot Script
+        continue-on-error: true
+        env:
+          BSKY_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+        run: python bot.py
 
-    - name: Commit, Push and Loop Trigger
-      env:
-        GITHUB_TOKEN: ${{ secrets.BOT_LOOP_TOKEN }}
-      run: |
-        git config --global user.name "GitHub Action Bot"
-        git config --global user.email "actions@github.com"
-        git add frame_counter.txt
-        
-        # If a frame was posted, commit and push the updated counter
-        if ! git diff-index --quiet HEAD; then
-          git commit -m "🤖 Auto-increment frame counter"
-          git pull --rebase origin main
-          git push
-        else
-          echo "⚠️ Frame was not posted this cycle (likely a temporary 502/network hiccup). Will retry the same frame next cycle!"
-        fi
-        
-        # Always trigger the next 3-minute cycle, even if Bluesky had a temporary 502 error
-        echo "🔄 Waiting 150 seconds before triggering the next 3-minute queue cycle..."
-        sleep 150
-        
-        curl -sS -X POST \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/${{ github.repository }}/actions/workflows/frame_bot.yml/dispatches \
-          -d '{"ref":"main"}'
+      - name: Commit, Push and Loop Trigger
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+
+          git add frame_counter.txt
+
+          # Commit only when the frame counter changed
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-increment frame counter"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "Frame was not posted. Will retry the same frame next cycle."
+          fi
+
+          echo "Waiting 150 seconds before the next cycle..."
+          sleep 150
+
+          # Trigger the next run, and fail visibly if GitHub rejects it
+          curl --fail-with-body -sS -L \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/frame_bot.yml/dispatches" \
+            -d '{"ref":"main"}'
