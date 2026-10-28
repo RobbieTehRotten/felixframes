@@ -1,23 +1,22 @@
 from datetime import datetime
 import os
+import sys
 import time
 import urllib.request
 from atproto import Client
+from atproto.exceptions import AtProtocolError
 import cv2
 
 # --- BLUESKY CONFIGURATION ---
 HANDLE = "malteseshakeframes.bsky.social"
-# Recommended: Store your password in GitHub Secrets as BSKY_PASSWORD, or replace the fallback string below
-APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD", "dh5h-biq2-7ija-d4s7")
+APP_PASSWORD = os.getenv("BSKY_PASSWORD", "---------")
 
 # --- INTERNET ARCHIVE CONFIGURATION ---
-# Replace this with your direct archive.org/download/... link ending in .mp4
-ARCHIVE_VIDEO_URL = (
-    "https://archive.org/download/Untitledfel/Untitledfel.mp4"
-)
+ARCHIVE_VIDEO_URL = "https://archive.org/download/Untitledfel/Untitledfel.mp4"
 
-MAX_BYTES = 950_000  # Bluesky's strict image blob limit is ~976.56 KB (1,000,000 bytes)
+MAX_BYTES = 950_000
 LOCAL_STATE = "frame_counter.txt"
+SESSION_FILE = "bsky_session.txt"
 TEMP_IMG = "temp_frame.png"
 
 
@@ -45,11 +44,7 @@ def generate_progress_bar(current, total, bar_length=10):
 
 
 def resolve_archive_url(url):
-  """Archive.org /download/ links redirect (HTTP 302) to a specific storage server
-
-  (e.g., https://ia801234.us.archive.org/...). Resolving the final URL first
-  helps OpenCV's FFmpeg backend open and seek the stream without timing out.
-  """
+  """Resolves Archive.org's 302 redirect to the direct storage server URL."""
   try:
     req = urllib.request.Request(
         url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"}
@@ -61,17 +56,43 @@ def resolve_archive_url(url):
     return url
 
 
+def get_authenticated_client():
+  """Reuses an existing Bluesky session if available to avoid hammering
+
+  createSession (which triggers 403 blocks on GitHub Actions IPs).
+  """
+  client = Client()
+
+  if os.path.exists(SESSION_FILE):
+    try:
+      with open(SESSION_FILE, "r") as f:
+        session_str = f.read().strip()
+      if session_str:
+        print("🔑 Resuming saved Bluesky session...")
+        client.login(session_string=session_str)
+        # Save refreshed session string
+        with open(SESSION_FILE, "w") as f:
+          f.write(client.export_session_string())
+        return client
+    except Exception as e:
+      print(f"⚠️ Saved session expired or invalid ({e}), logging in fresh...")
+
+  print("🔐 Performing fresh login with App Password...")
+  client.login(HANDLE, APP_PASSWORD)
+  with open(SESSION_FILE, "w") as f:
+    f.write(client.export_session_string())
+  return client
+
+
 def main():
   print(f"🚀 Execution started at {datetime.now().strftime('%H:%M:%S')}")
   current_frame = get_current_frame_index()
   print(f"🎬 Target index: Frame {current_frame}")
 
-  # Resolve the direct storage server URL from Archive.org
   print("🌐 Resolving Internet Archive stream URL...")
   stream_url = resolve_archive_url(ARCHIVE_VIDEO_URL)
   print(f"🔗 Direct stream endpoint: {stream_url}")
 
-  # Connect OpenCV to the Archive.org stream (with retries for transient network hiccups)
   cap = None
   for attempt in range(1, 4):
     cap = cv2.VideoCapture(stream_url)
@@ -84,7 +105,7 @@ def main():
     print(
         "❌ ERROR: Could not open the Archive.org video stream URL directly."
     )
-    return
+    sys.exit(1)
 
   total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
   print(f"📊 Video stream parsed successfully. Total frames: {total_frames:,}")
@@ -92,7 +113,7 @@ def main():
   if total_frames <= 0:
     print("❌ ERROR: Video metadata returned an empty stream layout.")
     cap.release()
-    return
+    sys.exit(1)
 
   if current_frame >= total_frames:
     print("🎉 Finished all frames in the video!")
@@ -109,7 +130,7 @@ def main():
         f"❌ ERROR: Failed to extract frame {current_frame} from the network"
         " stream."
     )
-    return
+    sys.exit(1)
 
   cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
 
@@ -118,9 +139,8 @@ def main():
   scale_factor = 0.90
   while file_size > MAX_BYTES:
     orig_height, orig_width = frame.shape[0], frame.shape[1]
-    width, height = int(orig_width * scale_factor), int(
-        orig_height * scale_factor
-    )
+    width = int(orig_width * scale_factor)
+    height = int(orig_height * scale_factor)
     if width < 100 or height < 100:
       break
     frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
@@ -128,28 +148,36 @@ def main():
     file_size = os.path.getsize(TEMP_IMG)
 
   try:
-    # Establish Bluesky authentication
-    client = Client()
-    client.login(HANDLE, APP_PASSWORD)
     progress_bar = generate_progress_bar(current_frame, total_frames)
     status_text = f"Frame {current_frame:,} of {total_frames:,}\n{progress_bar}"
 
     with open(TEMP_IMG, "rb") as f:
       img_data = f.read()
 
-    client.send_image(
-        text=status_text, image=img_data, image_alt=f"Frame {current_frame}"
-    )
-    print(f"🎯 SUCCESS: Posted frame {current_frame} to Bluesky.")
-
-    # Increment index value and save it locally for the repo update step
-    save_current_frame_index(current_frame + 1)
+    # Retry loop for transient 403 Cloudflare / Bluesky blocks
+    for attempt in range(1, 4):
+      try:
+        client = get_authenticated_client()
+        client.send_image(
+            text=status_text, image=img_data, image_alt=f"Frame {current_frame}"
+        )
+        print(f"🎯 SUCCESS: Posted frame {current_frame} to Bluesky.")
+        save_current_frame_index(current_frame + 1)
+        break
+      except AtProtocolError as bsky_err:
+        print(f"⚠️ Bluesky API Error (Attempt {attempt}/3): {bsky_err}")
+        # If session was rejected with 403/401, clear cached session for next attempt
+        if os.path.exists(SESSION_FILE):
+          os.remove(SESSION_FILE)
+        if attempt == 3:
+          raise
+        time.sleep(5 * attempt)
 
   except Exception as e:
     print(f"❌ Error occurred: {e}")
+    sys.exit(1)
 
   finally:
-    # Keep workspace clean
     if os.path.exists(TEMP_IMG):
       os.remove(TEMP_IMG)
 
