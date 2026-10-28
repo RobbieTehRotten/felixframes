@@ -9,11 +9,7 @@ import cv2
 
 # --- BLUESKY CONFIGURATION ---
 HANDLE = "malteseshakeframes.bsky.social"
-APP_PASSWORD = (
-    os.getenv("BLUESKY_APP_PASSWORD")
-    or os.getenv("BSKY_PASSWORD")
-    or "---------"
-)
+APP_PASSWORD = os.getenv("BSKY_PASSWORD", "vpxt-man6-sgqi-cgrm")
 
 # --- INTERNET ARCHIVE CONFIGURATION ---
 ARCHIVE_VIDEO_URL = "https://archive.org/download/Untitledfel/Untitledfel.mp4"
@@ -38,6 +34,15 @@ def save_current_frame_index(index):
     f.write(str(index))
 
 
+def generate_progress_bar(current, total, bar_length=10):
+  if total <= 0:
+    return ""
+  percentage = (current / total) * 100
+  filled_length = int(round(bar_length * current / float(total)))
+  bar = "█" * filled_length + "▒" * (bar_length - filled_length)
+  return f"{bar} {percentage:.1f}%"
+
+
 def resolve_archive_url(url):
   """Resolves Archive.org's 302 redirect to the direct storage server URL."""
   try:
@@ -52,7 +57,10 @@ def resolve_archive_url(url):
 
 
 def get_authenticated_client():
-  """Reuses an existing Bluesky session if available."""
+  """Reuses an existing Bluesky session if available to avoid hammering
+
+  createSession (which triggers 403 blocks on GitHub Actions IPs).
+  """
   client = Client()
 
   if os.path.exists(SESSION_FILE):
@@ -62,6 +70,7 @@ def get_authenticated_client():
       if session_str:
         print("🔑 Resuming saved Bluesky session...")
         client.login(session_string=session_str)
+        # Save refreshed session string
         with open(SESSION_FILE, "w") as f:
           f.write(client.export_session_string())
         return client
@@ -111,6 +120,7 @@ def main():
     cap.release()
     return
 
+  # Seek directly to the target frame over the HTTP range stream
   cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
   ret, frame = cap.read()
   cap.release()
@@ -124,6 +134,7 @@ def main():
 
   cv2.imwrite(TEMP_IMG, frame, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
 
+  # Shrinking loop if the picture file size exceeds Bluesky's limit
   file_size = os.path.getsize(TEMP_IMG)
   scale_factor = 0.90
   while file_size > MAX_BYTES:
@@ -143,6 +154,7 @@ def main():
     with open(TEMP_IMG, "rb") as f:
       img_data = f.read()
 
+    # Retry loop for transient 403 Cloudflare / Bluesky blocks
     for attempt in range(1, 4):
       try:
         client = get_authenticated_client()
@@ -154,13 +166,12 @@ def main():
         break
       except AtProtocolError as bsky_err:
         print(f"⚠️ Bluesky API Error (Attempt {attempt}/3): {bsky_err}")
+        # If session was rejected with 403/401, clear cached session for next attempt
         if os.path.exists(SESSION_FILE):
           os.remove(SESSION_FILE)
         if attempt == 3:
           raise
-        wait_seconds = 15 * attempt
-        print(f"⏳ Waiting {wait_seconds} seconds before retry...")
-        time.sleep(wait_seconds)
+        time.sleep(5 * attempt)
 
   except Exception as e:
     print(f"❌ Error occurred: {e}")
