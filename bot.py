@@ -38,15 +38,6 @@ def save_current_frame_index(index):
     f.write(str(index))
 
 
-def generate_progress_bar(current, total, bar_length=10):
-  if total <= 0:
-    return ""
-  percentage = (current / total) * 100
-  filled_length = int(round(bar_length * current / float(total)))
-  bar = "█" * filled_length + "▒" * (bar_length - filled_length)
-  return f"{bar} {percentage:.1f}%"
-
-
 def resolve_archive_url(url):
   """Resolves Archive.org's 302 redirect to the direct storage server URL."""
   try:
