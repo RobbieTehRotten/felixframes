@@ -7,7 +7,7 @@ permissions:
   contents: write
   actions: write
 
-# Prevent overlapping runs from posting the same frame
+# Prevent overlapping runs
 concurrency:
   group: frame-bot-runner
   cancel-in-progress: false
@@ -50,9 +50,47 @@ jobs:
 
           # Commit only if the frame counter changed
           if ! git diff --cached --quiet; then
+
             git commit -m "Auto-increment frame counter"
-            git pull --rebase origin main
-            git push origin HEAD:main
+
+            # Retry GitHub pushes up to five times
+            PUSH_SUCCESS=false
+
+            for attempt in 1 2 3 4 5; do
+              echo "Git push attempt $attempt of 5..."
+
+              # Refresh remote state before each attempt
+              if ! git fetch origin main; then
+                echo "Git fetch failed. Will retry."
+
+              elif ! git rebase FETCH_HEAD; then
+                echo "Rebase failed. Stopping to prevent counter conflicts."
+                git rebase --abort || true
+                exit 1
+
+              elif git push origin HEAD:main; then
+                echo "Counter successfully pushed to GitHub!"
+                PUSH_SUCCESS=true
+                break
+
+              else
+                echo "Git push failed. Will retry."
+              fi
+
+              if [ "$attempt" -lt 5 ]; then
+                WAIT_TIME=$((attempt * 15))
+                echo "Waiting $WAIT_TIME seconds before retry..."
+                sleep "$WAIT_TIME"
+              fi
+            done
+
+            # Stop if the counter could not be saved
+            if [ "$PUSH_SUCCESS" != "true" ]; then
+              echo "::error::Failed to push frame counter after five attempts."
+              echo "Stopping to prevent the next cycle from reposting a frame."
+              exit 1
+            fi
+
           else
             echo "Frame was not posted. Will retry the same frame next cycle."
           fi
@@ -61,7 +99,7 @@ jobs:
           echo "Waiting 150 seconds before the next cycle..."
           sleep 150
 
-          # Retry transient GitHub API errors
+          # Trigger the next workflow run with retries
           echo "Triggering the next workflow run..."
 
           curl --fail-with-body -sS -L \
@@ -75,4 +113,4 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/frame_bot.yml/dispatches" \
             -d '{"ref":"main"}'
 
-          echo "Workflow dispatch request succeeded."
+          echo "Next workflow dispatch request succeeded."
