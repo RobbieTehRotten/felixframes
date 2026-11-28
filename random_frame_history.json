@@ -1,15 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-11-28T15:38:24.496217+00:00",
+  "updated_at": "2026-11-28T16:08:25.177774+00:00",
   "recent": [
-    {
-      "key": "The Twisted Tales of Felix the Cat_S01E12_Felix's Big Splash; Gross Ghost; The Underwater Kingdom.mp4-NTSC.mp4::1454",
-      "season": 1,
-      "episode": 12,
-      "filename": "The Twisted Tales of Felix the Cat_S01E12_Felix's Big Splash; Gross Ghost; The Underwater Kingdom.mp4-NTSC.mp4",
-      "frame_index": 1454,
-      "posted_at": "2026-11-23T11:08:26.347091+00:00"
-    },
     {
       "key": "The Twisted Tales of Felix the Cat_S01E10_Love at First Slice; Space Case; Peg Leg Felix.mp4-NTSC.mp4::12054",
       "season": 1,
@@ -2001,6 +1993,14 @@
       "filename": "The Twisted Tales of Felix the Cat_S02E03_The Punderground; Nightmare on Oak Street; Star Trash.mp4-NTSC.mp4",
       "frame_index": 2218,
       "posted_at": "2026-11-28T15:38:24.496205+00:00"
+    },
+    {
+      "key": "The Twisted Tales of Felix the Cat_S01E13_Wet Paint; News Blues; Copycat.mp4-NTSC.mp4::17157",
+      "season": 1,
+      "episode": 13,
+      "filename": "The Twisted Tales of Felix the Cat_S01E13_Wet Paint; News Blues; Copycat.mp4-NTSC.mp4",
+      "frame_index": 17157,
+      "posted_at": "2026-11-28T16:08:25.177761+00:00"
     }
   ]
 }
