@@ -1,15 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-11-28T18:38:26.122591+00:00",
+  "updated_at": "2026-11-28T19:08:24.853070+00:00",
   "recent": [
-    {
-      "key": "The Twisted Tales of Felix the Cat_S01E04_The Manhattan Triangle; The Petrified Cheese.mp4-NTSC.mp4::19606",
-      "season": 1,
-      "episode": 4,
-      "filename": "The Twisted Tales of Felix the Cat_S01E04_The Manhattan Triangle; The Petrified Cheese.mp4-NTSC.mp4",
-      "frame_index": 19606,
-      "posted_at": "2026-11-23T14:08:26.753570+00:00"
-    },
     {
       "key": "The Twisted Tales of Felix the Cat_S01E11_Shell Shock; The Big Hunt.mp4-NTSC.mp4::31923",
       "season": 1,
@@ -2001,6 +1993,14 @@
       "filename": "The Twisted Tales of Felix the Cat_S01E01_Space Time Twister; Guardian Idiot; Don't String Me Along.mp4-NTSC.mp4",
       "frame_index": 20829,
       "posted_at": "2026-11-28T18:38:26.122578+00:00"
+    },
+    {
+      "key": "The Twisted Tales of Felix the Cat_S01E02_The Sludge King Part 1; The Sludge King Part 2; Mars Needs Felix.mp4-NTSC.mp4::7374",
+      "season": 1,
+      "episode": 2,
+      "filename": "The Twisted Tales of Felix the Cat_S01E02_The Sludge King Part 1; The Sludge King Part 2; Mars Needs Felix.mp4-NTSC.mp4",
+      "frame_index": 7374,
+      "posted_at": "2026-11-28T19:08:24.853055+00:00"
     }
   ]
 }
